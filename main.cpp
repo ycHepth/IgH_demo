@@ -213,16 +213,5 @@ int main() {
         cyclic_task();
     }
 
-    return EXIT_SUCCESS
-
-
-
-
-
-
-
-
-
-
-    return 0;
+    return EXIT_SUCCESS;
 }
