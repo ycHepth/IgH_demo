@@ -10,9 +10,9 @@
 
 #include "ecrt.h"
 
-#define TASK_FREQUENCY 10 // Hz
-#define TARGET_VELOCITY -100 // cnt per second
-#define PROFILE_VELOCITY 9 // operation mode for 0x6060:0  (pv mode)
+#define TASK_FREQUENCY 100 // Hz
+#define TARGET_VELOCITY 100 // cnt per second
+#define PROFILE_VELOCITY 9 // operation mode for 0x6060:0  (csv mode)
 
 // 1 -- profile position mode
 // 3 -- profile velocity mode
@@ -25,7 +25,7 @@
 // intermediate position/velocity/torque itself directly at trajectory generator.
 
 
-// etherCAT
+// etherCAT object
 
 static ec_master_t *master = NULL;
 static ec_master_state_t master_state = {};
@@ -146,8 +146,8 @@ void cyclic_task(){
 
     check_slave_config_states();
 
-    std::cout << "pos = " << EC_READ_S32(domain1_pd + offset.current_position) << std::endl;
-    std::cout << "vel = " << EC_READ_S32(domain1_pd + offset.current_velocity) << std::endl;
+//    std::cout << "pos = " << EC_READ_S32(domain1_pd + offset.current_position) << std::endl;
+//    std::cout << "vel = " << EC_READ_S32(domain1_pd + offset.current_velocity) << std::endl;
 
 
     // read state
@@ -155,6 +155,7 @@ void cyclic_task(){
 
 //    std::cout << (status & command) << std::endl;
 
+    // Enable (0x06 > 0x07 > 0x0F)
 
     if((status & command) == 0x0040){
         EC_WRITE_U16(domain1_pd + offset.ctrl_word,0x0006);
@@ -179,9 +180,8 @@ void cyclic_task(){
         EC_WRITE_S32(domain1_pd + offset.target_velocity, TARGET_VELOCITY);
         EC_WRITE_U16(domain1_pd + offset.ctrl_word, 0x001f); // switch on and enable operation
     }
-//    else
-//        std::cout << "WRONG." << std::endl;
 
+    // send process data to domain
     ecrt_domain_queue(domain1);
     ecrt_master_send(master);
 }
