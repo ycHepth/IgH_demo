@@ -10,9 +10,10 @@
 
 #include "ecrt.h"
 
-#define TASK_FREQUENCY 100 // Hz
-#define TARGET_VELOCITY 100 // PUU (synapticon defalut set PUU as rpm (?)
-#define PROFILE_VELOCITY 9 // operation mode for 0x6060:0  (csv mode)
+#define TASK_FREQUENCY 50 // Hz
+#define TARGET_VELOCITY 1000 // PUU (synapticon defalut set PUU as rpm (?)
+#define TARGET_POSITION 1000 // cnt
+#define OP 9 // operation mode for 0x6060:0  (csv mode)
 
 // 1 -- profile position mode
 // 3 -- profile velocity mode
@@ -36,7 +37,7 @@ static ec_slave_config_t *sc;
 static ec_slave_config_state_t sc_state = {};
 
 
-//==================== PDO =========================
+//==================== PDOs =========================
 static uint8_t *domain1_pd = NULL;
 
 #define SynapticonSlave 0,0
@@ -51,6 +52,7 @@ static struct
     unsigned int status_word;
     unsigned int current_position;
     unsigned int current_velocity;
+    unsigned int target_position;
 }offset;
 
 const static ec_pdo_entry_reg_t domain1_reg[] = {
@@ -60,6 +62,7 @@ const static ec_pdo_entry_reg_t domain1_reg[] = {
     {SynapticonSlave, Synapticon, 0x6041, 0, &offset.status_word},
     {SynapticonSlave, Synapticon, 0x6064, 0, &offset.current_position},
     {SynapticonSlave, Synapticon, 0x606C, 0, &offset.current_velocity},
+    {SynapticonSlave, Synapticon, 0x607A, 0, &offset.target_position},
     {}
 };
 
@@ -69,6 +72,7 @@ static ec_pdo_entry_info_t device_pdo_entries[] = {
     {0x6040, 0x00, 16}, // control word
     {0x6060, 0x00,  8}, // Modes of operation
     {0x60FF, 0x00, 32}, // Target velocity
+    {0x607A, 0x00, 32},  // Target position
 
     /* TxPdo 0x1A00 */
     {0x6041, 0x00, 16}, // Status word
@@ -78,9 +82,9 @@ static ec_pdo_entry_info_t device_pdo_entries[] = {
 
 static ec_pdo_info_t device_pdos[] = {
         /* RxPDO */
-        {0x1600,3,device_pdo_entries + 0},
+        {0x1600,4,device_pdo_entries + 0},
         /* TxPDO */
-        {0x1A00,3,device_pdo_entries + 3}
+        {0x1A00,3,device_pdo_entries + 4}
 };
 
 static ec_sync_info_t device_syncs[] = {
@@ -146,8 +150,9 @@ void cyclic_task(){
 
     check_slave_config_states();
 
-//    std::cout << "pos = " << EC_READ_S32(domain1_pd + offset.current_position) << std::endl;
-//    std::cout << "vel = " << EC_READ_S32(domain1_pd + offset.current_velocity) << std::endl;
+    std::cout << "pos = " << EC_READ_S32(domain1_pd + offset.current_position) << std::endl;
+//    std::cout << "target pos = " << EC_READ_S32(domain1_pd + offset.current_position) + TARGET_POSITION << std::endl;
+    std::cout << "vel = " << EC_READ_S32(domain1_pd + offset.current_velocity) << std::endl;
 
 
     // read state
@@ -159,7 +164,7 @@ void cyclic_task(){
 
     if((status & command) == 0x0040){
         EC_WRITE_U16(domain1_pd + offset.ctrl_word,0x0006);
-        EC_WRITE_S8(domain1_pd + offset.operation_mode, PROFILE_VELOCITY);
+        EC_WRITE_S8(domain1_pd + offset.operation_mode, OP);
         command = 0x006F;
     }
     else if ((status & command) == 0x0021)
@@ -177,6 +182,13 @@ void cyclic_task(){
     else if ((status & command) == 0x0027)
     {
 //        std::cout << "Enter velocity assignments. " << std::endl;
+        /* csp mode */
+//        int32_t pos_now = 0;
+//        pos_now = EC_READ_S32(domain1_pd + offset.current_position);
+//        EC_WRITE_S32(domain1_pd + offset.target_position, TARGET_POSITION + pos_now);
+//        EC_WRITE_U16(domain1_pd + offset.ctrl_word, 0x001f); // switch on and enable operation
+
+        /* csv mode */
         EC_WRITE_S32(domain1_pd + offset.target_velocity, TARGET_VELOCITY);
         EC_WRITE_U16(domain1_pd + offset.ctrl_word, 0x001f); // switch on and enable operation
     }
