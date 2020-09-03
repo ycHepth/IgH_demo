@@ -11,7 +11,7 @@
 #include "ecrt.h"
 
 #define TASK_FREQUENCY 100 // Hz
-#define TARGET_VELOCITY 100 // cnt per second
+#define TARGET_VELOCITY 100 // PUU (synapticon defalut set PUU as rpm (?)
 #define PROFILE_VELOCITY 9 // operation mode for 0x6060:0  (csv mode)
 
 // 1 -- profile position mode
