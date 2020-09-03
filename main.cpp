@@ -10,9 +10,9 @@
 
 #include "ecrt.h"
 
-#define TASK_FREQUENCY 30 // Hz
-#define TARGET_VELOCITY 110000 // cnt per second
-#define PROFILE_VELOCITY 3 // operation mode for 0x6060:0
+#define TASK_FREQUENCY 10 // Hz
+#define TARGET_VELOCITY -100 // cnt per second
+#define PROFILE_VELOCITY 9 // operation mode for 0x6060:0  (pv mode)
 
 // 1 -- profile position mode
 // 3 -- profile velocity mode
@@ -36,7 +36,7 @@ static ec_slave_config_t *sc;
 static ec_slave_config_state_t sc_state = {};
 
 
-// PDO
+//==================== PDO =========================
 static uint8_t *domain1_pd = NULL;
 
 #define SynapticonSlave 0,0
@@ -87,14 +87,16 @@ static ec_sync_info_t device_syncs[] = {
     {0, EC_DIR_OUTPUT, 0, NULL, EC_WD_DISABLE},
     {1, EC_DIR_INPUT, 0, NULL, EC_WD_DISABLE},
     {2, EC_DIR_OUTPUT, 1, device_pdos + 0, EC_WD_DISABLE},
-    {3, EC_DIR_OUTPUT, 1, device_pdos + 1, EC_WD_DISABLE},
+    {3, EC_DIR_INPUT, 1, device_pdos + 1, EC_WD_DISABLE},
     {0xFF}
 };
+// ====================================================
 
 // =================== Function =======================
 
 
 void check_domain1_state(void){
+//    std::cout << "start checking domain state. " << std::endl;
     ec_domain_state_t ds;
     ecrt_domain_state(domain1, &ds);  // read state of the domain
     if (ds.working_counter != domain1_state.working_counter)
@@ -105,6 +107,8 @@ void check_domain1_state(void){
 }
 
 void check_master_state(void){
+//    std::cout << "start checking master state. " << std::endl;
+
     ec_master_state_t ms;
     ecrt_master_state(master,&ms); // read state of the master
     if(ms.slaves_responding != master_state.slaves_responding)
@@ -117,6 +121,7 @@ void check_master_state(void){
 }
 
 void check_slave_config_states(void){
+//    std::cout << "start checking slave config state. " << std::endl;
     ec_slave_config_state_t s;
     ecrt_slave_config_state(sc,&s);
     if (s.al_state != sc_state.al_state)
@@ -124,7 +129,7 @@ void check_slave_config_states(void){
     if(s.online != sc_state.online)
         printf("Slave: %s.\n",s.online ? "online" : "offline");
     if(s.operational != sc_state.operational)
-        printf("slave: %soperational.\n",s.operational ? "":"Not");
+        printf("slave: %soperational.\n",s.operational ? "":"Not ");
     sc_state = s;
 }
 
@@ -141,25 +146,41 @@ void cyclic_task(){
 
     check_slave_config_states();
 
+    std::cout << "pos = " << EC_READ_S32(domain1_pd + offset.current_position) << std::endl;
+    std::cout << "vel = " << EC_READ_S32(domain1_pd + offset.current_velocity) << std::endl;
+
+
     // read state
     status = EC_READ_U16((domain1_pd + offset.status_word));
 
+//    std::cout << (status & command) << std::endl;
+
+
     if((status & command) == 0x0040){
-        EC_WRITE_U16(domain1_pd+offset.ctrl_word,0x0006);
+        EC_WRITE_U16(domain1_pd + offset.ctrl_word,0x0006);
         EC_WRITE_S8(domain1_pd + offset.operation_mode, PROFILE_VELOCITY);
         command = 0x006F;
     }
-
     else if ((status & command) == 0x0021)
     {
-        EC_WRITE_U16(domain1_pd+offset.ctrl_word,0x000f);
+        EC_WRITE_U16(domain1_pd+offset.ctrl_word,0x0007);
         command = 0x006F;
     }
+
+    else if((status & command) == 0x0023)
+    {
+        EC_WRITE_U16(domain1_pd + offset.ctrl_word,0x000F);
+        command - 0x006F;
+    }
+
     else if ((status & command) == 0x0027)
     {
+//        std::cout << "Enter velocity assignments. " << std::endl;
         EC_WRITE_S32(domain1_pd + offset.target_velocity, TARGET_VELOCITY);
-        EC_WRITE_U16(domain1_pd + offset.ctrl_word, 0x001f);
+        EC_WRITE_U16(domain1_pd + offset.ctrl_word, 0x001f); // switch on and enable operation
     }
+//    else
+//        std::cout << "WRONG." << std::endl;
 
     ecrt_domain_queue(domain1);
     ecrt_master_send(master);
@@ -193,6 +214,11 @@ int main() {
     {
         std::cout << "PDO entry registration failed." << std::endl;
         exit(EXIT_FAILURE);
+    } else
+    {
+        printf("success to configuring PDO entry.");
+        printf("operation mode = %d, ctrl word= %d, target_velocity = %d, status_word = %d, current_velocity = %d \n",
+                offset.operation_mode,offset.ctrl_word,offset.target_velocity,offset.status_word,offset.current_velocity);
     }
 
     std::cout << "Activating master... " << std::endl;
