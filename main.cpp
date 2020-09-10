@@ -11,7 +11,7 @@
 #include "ecrt.h"
 
 #define TASK_FREQUENCY 50 // Hz
-#define TARGET_VELOCITY 1000 // PUU (synapticon defalut set PUU as rpm (?)
+#define TARGET_VELOCITY 100 // PUU (synapticon defalut set PUU as rpm (?)
 #define TARGET_POSITION 1000 // cnt
 #define OP 9 // operation mode for 0x6060:0  (csv mode)
 
@@ -247,7 +247,7 @@ int main() {
 
     while(1)
     {
-        usleep(100000/TASK_FREQUENCY);
+        usleep(1000000/TASK_FREQUENCY);
         cyclic_task();
     }
 
